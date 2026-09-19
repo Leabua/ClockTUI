@@ -2,7 +2,7 @@
 name = "flipclock"
 version = "0.1.0"
 edition = "2021"
-description = "FlipClock — Pomodoro + Clock + Timer + Stopwatch with mechanical flip animation (TUI)"
+description = "ClockTUI — Clock, Pomodoro, Timer and Stopwatch TUI"
 authors = ["Leabua"]
 license = "MIT"
 repository = "https://github.com/leabua/flipclock"

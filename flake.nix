@@ -24,21 +24,20 @@
             ];
           };
           cargoLock.lockFile = ./Cargo.lock;
-          # Install under friendlier command names too:
+          # The invoke command is `clocktui`:
           postInstall = ''
-            ln -s $out/bin/flipclock $out/bin/fclock
-            ln -s $out/bin/flipclock $out/bin/pomo
+            ln -s $out/bin/flipclock $out/bin/clocktui
           '';
           meta = {
             description = "FlipClock — pomodoro, clock, timer and stopwatch TUI";
             license = pkgs.lib.licenses.mit;
-            mainProgram = "fclock";
+            mainProgram = "clocktui";
           };
         };
 
         apps.default = {
           type = "app";
-          program = "${self.packages.${system}.default}/bin/fclock";
+          program = "${self.packages.${system}.default}/bin/clocktui";
         };
 
         devShells.default = pkgs.mkShell {
