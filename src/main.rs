@@ -1390,14 +1390,16 @@ fn draw_progress(frame: &mut Frame, area: Rect, app: &App) {
             }
             let fill_w = (bar_w as f32 * prog.clamp(0.0,1.0)) as u16;
             let pc = app.pomodoro.phase_color(&th);
-            for x in bar_x..bar_x+fill_w {
+            // solid blocks across: filled █, remaining ░ (no travelling dot)
+            for (i, x) in (bar_x..bar_x+bar_w).enumerate() {
                 if x>=buf.area.width { break; }
-                buf[(x,bar_y)].set_char('━');
-                buf[(x,bar_y)].set_style(Style::default().fg(pc).bg(th.bg).add_modifier(Modifier::BOLD));
-            }
-            if fill_w>0 && fill_w<bar_w && bar_x+fill_w < buf.area.width {
-                buf[(bar_x+fill_w, bar_y)].set_char('●');
-                buf[(bar_x+fill_w, bar_y)].set_style(Style::default().fg(pc).bg(th.bg));
+                let filled = (i as u16) < fill_w;
+                buf[(x,bar_y)].set_char(if filled {'█'} else {'░'});
+                buf[(x,bar_y)].set_style(if filled {
+                    Style::default().fg(pc).bg(th.bg).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(th.card_border_dim).bg(th.bg)
+                });
             }
             if area.height>1 {
                 let dot_y = bar_y+1;
@@ -1437,14 +1439,16 @@ fn draw_progress(frame: &mut Frame, area: Rect, app: &App) {
             }
             let fill_w = (bar_w as f32 * prog.clamp(0.0,1.0)) as u16;
             let col = if app.timer.finished {th.accent_red} else {th.accent_blue};
-            for x in bar_x..bar_x+fill_w {
+            // solid blocks across: filled █, remaining ░ (no travelling dot)
+            for (i, x) in (bar_x..bar_x+bar_w).enumerate() {
                 if x>=buf.area.width { break; }
-                buf[(x,bar_y)].set_char('━');
-                buf[(x,bar_y)].set_style(Style::default().fg(col).bg(th.bg).add_modifier(Modifier::BOLD));
-            }
-            if fill_w>0 && fill_w<bar_w && bar_x+fill_w < buf.area.width {
-                buf[(bar_x+fill_w, bar_y)].set_char('●');
-                buf[(bar_x+fill_w, bar_y)].set_style(Style::default().fg(col).bg(th.bg));
+                let filled = (i as u16) < fill_w;
+                buf[(x,bar_y)].set_char(if filled {'█'} else {'░'});
+                buf[(x,bar_y)].set_style(if filled {
+                    Style::default().fg(col).bg(th.bg).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(th.card_border_dim).bg(th.bg)
+                });
             }
             if area.height>1 && app.timer.finished {
                 let txt = "  TIME'S UP  ";
