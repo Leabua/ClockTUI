@@ -1493,39 +1493,39 @@ fn draw_controls(frame: &mut Frame, area: Rect, app: &mut App) {
             let running = app.pomodoro.running;
             let pc = app.pomodoro.phase_color(&th);
             vec![
-                (if running {" ❚❚ PAUSE ".into()} else {" ▶ START ".into()}, if running {th.slab_bg} else {pc}, if running {th.text_main} else {Color::Rgb(16,16,18)}, ClickAction::StartPause),
-                (" ↺ RESET ".into(), th.slab_bg, th.text_main, ClickAction::Reset),
-                (" SKIP → ".into(), th.slab_bg, th.text_main, ClickAction::Skip),
+                (if running {" PAUSE ".into()} else {" ▶ START ".into()}, if running {th.slab_bg} else {pc}, if running {th.text_main} else {Color::Rgb(16,16,18)}, ClickAction::StartPause),
+                (" RESET ".into(), th.slab_bg, th.text_main, ClickAction::Reset),
+                (" SKIP ".into(), th.slab_bg, th.text_main, ClickAction::Skip),
             ]
         }
         AppMode::Timer => {
             // while typing a length, offer save/cancel instead of start
             if app.timer_editing {
                 vec![
-                    (" ✓ SAVE ".into(), th.accent_green, Color::Rgb(16,16,18), ClickAction::TimerSave),
-                    (" ✗ CANCEL ".into(), th.slab_bg, th.text_main, ClickAction::TimerCancel),
+                    (" SAVE ".into(), th.accent_green, Color::Rgb(16,16,18), ClickAction::TimerSave),
+                    (" CANCEL ".into(), th.slab_bg, th.text_main, ClickAction::TimerCancel),
                 ]
             } else {
                 let running = app.timer.running;
                 let finished = app.timer.finished;
-                let start_label: String = if finished {" ↺ RESTART ".into()} else if running {" ❚❚ PAUSE ".into()} else {" ▶ START ".into()};
+                let start_label: String = if finished {" RESTART ".into()} else if running {" PAUSE ".into()} else {" ▶ START ".into()};
                 let col = if finished || !running {th.accent_blue} else {th.slab_bg};
                 let fg = if finished || !running {Color::Rgb(16,16,18)} else {th.text_main};
                 let mut v: Vec<(String, Color, Color, ClickAction)> = Vec::new();
                 if !running && !finished {
-                    v.push((" ✎ EDIT ".into(), th.slab_bg, th.text_main, ClickAction::TimerEdit));
+                    v.push((" EDIT ".into(), th.slab_bg, th.text_main, ClickAction::TimerEdit));
                 }
                 v.push((start_label, col, fg, ClickAction::StartPause));
-                v.push((" ↺ RESET ".into(), th.slab_bg, th.text_main, ClickAction::Reset));
+                v.push((" RESET ".into(), th.slab_bg, th.text_main, ClickAction::Reset));
                 v
             }
         }
         AppMode::Stopwatch => {
             let running = app.stopwatch.running;
             vec![
-                (if running {" ❚❚ PAUSE ".into()} else {" ▶ START ".into()}, if running {th.slab_bg} else {th.accent_green}, if running {th.text_main} else {Color::Rgb(16,16,18)}, ClickAction::StartPause),
-                (" ◎ LAP ".into(), th.slab_bg, th.text_main, ClickAction::Lap),
-                (" ↺ RESET ".into(), th.slab_bg, th.text_main, ClickAction::Reset),
+                (if running {" PAUSE ".into()} else {" ▶ START ".into()}, if running {th.slab_bg} else {th.accent_green}, if running {th.text_main} else {Color::Rgb(16,16,18)}, ClickAction::StartPause),
+                (" LAP ".into(), th.slab_bg, th.text_main, ClickAction::Lap),
+                (" RESET ".into(), th.slab_bg, th.text_main, ClickAction::Reset),
             ]
         }
     };
