@@ -1291,11 +1291,7 @@ fn draw_mode_info(frame: &mut Frame, area: Rect, app: &mut App) {
             spans.push(Span::styled(format!("{} LAPS  •  {s}", app.stopwatch.laps.len()), Style::default().fg(th.text_dim).bg(th.bg)));
         }
     }
-    // settings + quit inline with the status (no separate footer)
-    if area.width > 50 {
-        spans.push(Span::raw("   "));
-        spans.push(Span::styled("s settings • q quit", Style::default().fg(th.text_muted).bg(th.bg)));
-    }
+    // no settings/quit hint — the gear sits in the bottom nav row
     let p = Paragraph::new(Line::from(spans)).alignment(Alignment::Center).style(Style::default().bg(th.bg));
     frame.render_widget(p, area);
 }
