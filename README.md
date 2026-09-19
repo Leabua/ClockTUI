@@ -33,7 +33,7 @@ stopwatch — built in Rust with [ratatui](https://ratatui.rs/).
 
 ## Settings (`S`)
 
-- **DISPLAY** — theme, transparent background
+- **DISPLAY** — theme, transparent background, 24-hour clock, seconds
 - **POMODORO-SPECIFIC** — focus / short break / long break lengths, sessions
   before a long break, auto-start breaks / focus
 

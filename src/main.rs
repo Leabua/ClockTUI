@@ -375,13 +375,13 @@ impl StopwatchState { fn new()->Self{ Self{elapsed:Duration::ZERO, running:false
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum SettingsField { Theme, Transparent, Work, Short, Long, Cycles, AutoBreak, AutoWork }
+enum SettingsField { Theme, Transparent, Clock24h, ShowSeconds, Work, Short, Long, Cycles, AutoBreak, AutoWork }
 impl SettingsField {
     fn next(self)->Self{
-        match self{Self::Theme=>Self::Transparent, Self::Transparent=>Self::Work, Self::Work=>Self::Short, Self::Short=>Self::Long, Self::Long=>Self::Cycles, Self::Cycles=>Self::AutoBreak, Self::AutoBreak=>Self::AutoWork, Self::AutoWork=>Self::Theme}
+        match self{Self::Theme=>Self::Transparent, Self::Transparent=>Self::Clock24h, Self::Clock24h=>Self::ShowSeconds, Self::ShowSeconds=>Self::Work, Self::Work=>Self::Short, Self::Short=>Self::Long, Self::Long=>Self::Cycles, Self::Cycles=>Self::AutoBreak, Self::AutoBreak=>Self::AutoWork, Self::AutoWork=>Self::Theme}
     }
     fn prev(self)->Self{
-        match self{Self::Theme=>Self::AutoWork, Self::Transparent=>Self::Theme, Self::Work=>Self::Transparent, Self::Short=>Self::Work, Self::Long=>Self::Short, Self::Cycles=>Self::Long, Self::AutoBreak=>Self::Cycles, Self::AutoWork=>Self::AutoBreak}
+        match self{Self::Theme=>Self::AutoWork, Self::Transparent=>Self::Theme, Self::Clock24h=>Self::Transparent, Self::ShowSeconds=>Self::Clock24h, Self::Work=>Self::ShowSeconds, Self::Short=>Self::Work, Self::Long=>Self::Short, Self::Cycles=>Self::Long, Self::AutoBreak=>Self::Cycles, Self::AutoWork=>Self::AutoBreak}
     }
 }
 
@@ -591,6 +591,8 @@ impl App {
                     SettingsField::AutoBreak => self.pomodoro.auto_start_breaks=!self.pomodoro.auto_start_breaks,
                     SettingsField::AutoWork => self.pomodoro.auto_start_work=!self.pomodoro.auto_start_work,
                     SettingsField::Transparent => self.transparent_bg=!self.transparent_bg,
+                    SettingsField::Clock24h => self.use_24h=!self.use_24h,
+                    SettingsField::ShowSeconds => self.show_seconds=!self.show_seconds,
                     SettingsField::Theme => { self.theme_idx=(self.theme_idx+1)%THEMES.len(); }
                     _ => {}
                 }
@@ -721,6 +723,8 @@ impl App {
             SettingsField::AutoBreak => self.pomodoro.auto_start_breaks=!self.pomodoro.auto_start_breaks,
             SettingsField::AutoWork => self.pomodoro.auto_start_work=!self.pomodoro.auto_start_work,
             SettingsField::Transparent => self.transparent_bg=!self.transparent_bg,
+            SettingsField::Clock24h => self.use_24h=!self.use_24h,
+            SettingsField::ShowSeconds => self.show_seconds=!self.show_seconds,
             SettingsField::Theme => {
                 if dir>0 { self.theme_idx=(self.theme_idx+1)%THEMES.len(); }
                 else { self.theme_idx=(self.theme_idx+THEMES.len()-1)%THEMES.len(); }
@@ -1074,10 +1078,11 @@ fn ui(frame: &mut Frame, app: &mut App) {
     // layout top→bottom: shortcuts / status / big numbers / progress / buttons / laps? / nav
     // the nav row (ClockTui + mode tabs) sits at the absolute bottom.
     let laps_h = if app.mode == AppMode::Stopwatch && !app.stopwatch.laps.is_empty() && area.height >= 34 { 8 } else { 0 };
+    let shortcuts_h = if shortcuts_text(app).is_empty() { 0 } else { 1 };
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1), // shortcuts, top-right
+            Constraint::Length(shortcuts_h), // shortcuts, top-right (0 in Clock)
             Constraint::Length(1), // mode status
             Constraint::Min(10),   // big numbers (absorbs extra space)
             Constraint::Length(2), // progress
@@ -1209,17 +1214,23 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
+/// Top-right shortcuts. Clock mode has none (its toggles live in Settings),
+/// so the row collapses and the numbers get the space.
+fn shortcuts_text(app: &App) -> &'static str {
+    match app.mode {
+        AppMode::Clock => "",
+        AppMode::Pomodoro => "space start • r reset • s skip",
+        AppMode::Timer if app.timer_editing => "enter save • esc cancel",
+        AppMode::Timer => "space start • r reset • e edit",
+        AppMode::Stopwatch => "space start • l lap • r reset",
+    }
+}
+
 /// Keyboard shortcuts, top-right. Single muted row, contextual per mode.
 fn draw_shortcuts(frame: &mut Frame, area: Rect, app: &App) {
     if area.height == 0 || area.width < 24 { return; }
     let th = app.theme();
-    let hint: &str = match app.mode {
-        AppMode::Clock => "t 12/24h • r seconds • s settings • q quit",
-        AppMode::Pomodoro => "space start • r reset • s skip • q quit",
-        AppMode::Timer if app.timer_editing => "enter save • esc cancel",
-        AppMode::Timer => "space start • r reset • e edit • q quit",
-        AppMode::Stopwatch => "space start • l lap • r reset • q quit",
-    };
+    let hint = shortcuts_text(app);
     if hint.is_empty() { return; }
     // right-align; truncate from the left if narrow
     let chars: Vec<char> = hint.chars().collect();
@@ -1280,7 +1291,11 @@ fn draw_mode_info(frame: &mut Frame, area: Rect, app: &mut App) {
             spans.push(Span::styled(format!("{} LAPS  •  {s}", app.stopwatch.laps.len()), Style::default().fg(th.text_dim).bg(th.bg)));
         }
     }
-    // no theme spam here — themes live in Settings only
+    // settings + quit inline with the status (no separate footer)
+    if area.width > 50 {
+        spans.push(Span::raw("   "));
+        spans.push(Span::styled("s settings • q quit", Style::default().fg(th.text_muted).bg(th.bg)));
+    }
     let p = Paragraph::new(Line::from(spans)).alignment(Alignment::Center).style(Style::default().bg(th.bg));
     frame.render_widget(p, area);
 }
@@ -1715,6 +1730,8 @@ fn draw_settings(frame: &mut Frame, app: &mut App) {
     heading(frame, app, &mut list_y, "DISPLAY");
     field_row(frame, app, &mut list_y, SettingsField::Theme, "Theme".into(), th.name.to_string());
     field_row(frame, app, &mut list_y, SettingsField::Transparent, "Transparent BG".into(), if app.transparent_bg {"ON"} else {"OFF"}.into());
+    field_row(frame, app, &mut list_y, SettingsField::Clock24h, "Clock".into(), if app.use_24h {"24H"} else {"12H"}.into());
+    field_row(frame, app, &mut list_y, SettingsField::ShowSeconds, "Seconds".into(), if app.show_seconds {"ON"} else {"OFF"}.into());
 
     // ── Pomodoro-specific (only affects Pomodoro mode) ──
     heading(frame, app, &mut list_y, "POMODORO-SPECIFIC");
@@ -1728,7 +1745,7 @@ fn draw_settings(frame: &mut Frame, app: &mut App) {
     list_y+=1;
     if list_y >= inner.y+inner.height { return; }
     let gen: Vec<String> = vec![
-        format!("Display: 24H [{}] SEC [{}] Mouse [{}]", if app.use_24h {"ON"} else {"OFF"}, if app.show_seconds {"ON"} else {"OFF"}, if app.mouse_enabled {"ON"} else {"OFF"}),
+        format!("Mouse [{}] (M toggles)", if app.mouse_enabled {"ON"} else {"OFF"}),
         "Theme: [ / ] cycle, T cycles, B transparent BG".into(),
         "".into(),
         "Keys: 1-4 Mode • TAB Cycle • SPACE Start • Q Quit".into(),
