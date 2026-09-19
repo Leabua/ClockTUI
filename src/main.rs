@@ -1060,7 +1060,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
             AppMode::Stopwatch => "STOPWATCH",
         });
         let p = Paragraph::new(vec![
-            Line::from(Span::styled("FLIPCLOCK — terminal too small", Style::default().fg(th.accent_yellow).bg(th.bg).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled("ClockTui — terminal too small", Style::default().fg(th.accent_yellow).bg(th.bg).add_modifier(Modifier::BOLD))),
             Line::from(Span::styled(msg, Style::default().fg(th.text_main).bg(th.bg))),
             Line::from(Span::styled("1 Clock  2 Pomodoro  3 Timer  4 Stopwatch  Space Start  Q Quit", Style::default().fg(th.text_dim).bg(th.bg))),
         ])
@@ -1071,26 +1071,23 @@ fn ui(frame: &mut Frame, app: &mut App) {
         return;
     }
 
-    // minimal layout: header / status / big numbers / progress / buttons / footer
-    let header_h = if area.height < 24 { 2 } else { 3 };
-    let mode_h = 1u16;
-    let progress_h = 2u16;
-    let controls_h = 2u16;
-    // flip area gets the rest, but at least card_h+2
-    // Use Layout with Min for flip to absorb extra space (centers vertically via inner centering)
+    // layout top→bottom: shortcuts / status / big numbers / progress / buttons / laps? / nav
+    // the nav row (ClockTui + mode tabs) sits at the absolute bottom.
+    let laps_h = if app.mode == AppMode::Stopwatch && !app.stopwatch.laps.is_empty() && area.height >= 34 { 8 } else { 0 };
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(header_h),
-            Constraint::Length(mode_h),
-            Constraint::Min(12),
-            Constraint::Length(progress_h),
-            Constraint::Length(controls_h),
-            Constraint::Length(1), // footer
+            Constraint::Length(1), // shortcuts, top-right
+            Constraint::Length(1), // mode status
+            Constraint::Min(10),   // big numbers (absorbs extra space)
+            Constraint::Length(2), // progress
+            Constraint::Length(1), // buttons
+            Constraint::Length(laps_h),
+            Constraint::Length(2), // nav row, absolute bottom
         ])
         .split(area);
 
-    draw_header(frame, chunks[0], app);
+    draw_shortcuts(frame, chunks[0], app);
     draw_mode_info(frame, chunks[1], app);
     let used_text_fallback = draw_flip_display(frame, chunks[2], app);
     if !used_text_fallback {
@@ -1108,7 +1105,10 @@ fn ui(frame: &mut Frame, app: &mut App) {
         }
     }
     draw_controls(frame, chunks[4], app);
-    draw_footer_laps(frame, chunks[5], app);
+    if laps_h > 0 {
+        draw_laps(frame, chunks[5], app);
+    }
+    draw_header(frame, chunks[6], app);
 
     if app.show_settings {
         draw_settings(frame, app);
@@ -1134,20 +1134,30 @@ fn ui(frame: &mut Frame, app: &mut App) {
     }
 }
 
+/// Bottom nav row: ClockTui title + mode tabs + settings gear.
+/// Always rendered in the last chunk so it sits at the absolute bottom.
 fn draw_header(frame: &mut Frame, area: Rect, app: &mut App) {
     if area.width < 20 || area.height == 0 { return; }
     let th = app.theme();
     let buf = frame.buffer_mut();
-    let title = " FLIPCLOCK ";
+    let title = " ClockTui ";
     let tabs = [
         (AppMode::Clock, " 1 CLOCK "),
         (AppMode::Pomodoro, " 2 POMODORO "),
         (AppMode::Timer, " 3 TIMER "),
         (AppMode::Stopwatch, " 4 STOPWATCH "),
     ];
-    let y = area.y + area.height.saturating_sub(2).min(area.y+1).max(area.y);
-    // actually center vertically: use area.y if height==2 else area.y+1
-    let y = if area.height >= 3 { area.y + 1 } else { area.y };
+    // content on the absolute bottom row, separator above it
+    let y = area.y + area.height.saturating_sub(1);
+    if area.height >= 2 {
+        let line_y = area.y;
+        for x in area.x..area.x+area.width {
+            if line_y >= buf.area.height { break; }
+            let cell=&mut buf[(x,line_y)];
+            cell.set_char('─');
+            cell.set_style(Style::default().fg(th.card_border_dim).bg(th.bg));
+        }
+    }
     let mut x = area.x + 1;
     for ch in title.chars() {
         if x >= area.x+area.width { break; }
@@ -1197,14 +1207,34 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &mut App) {
         }
         if tab_x>0 { tab_x-=1; }
     }
-    if area.height >= 3 {
-        let line_y = area.y.saturating_add(area.height.saturating_sub(1));
-        for x in area.x..area.x+area.width {
-            if line_y >= buf.area.height { break; }
-            let cell=&mut buf[(x,line_y)];
-            cell.set_char('─');
-            cell.set_style(Style::default().fg(th.card_border_dim).bg(th.bg));
-        }
+}
+
+/// Keyboard shortcuts, top-right. Single muted row, contextual per mode.
+fn draw_shortcuts(frame: &mut Frame, area: Rect, app: &App) {
+    if area.height == 0 || area.width < 24 { return; }
+    let th = app.theme();
+    let hint: &str = match app.mode {
+        AppMode::Clock => "t 12/24h • r seconds • s settings • q quit",
+        AppMode::Pomodoro => "space start • r reset • s skip • q quit",
+        AppMode::Timer if app.timer_editing => "enter save • esc cancel",
+        AppMode::Timer => "space start • r reset • e edit • q quit",
+        AppMode::Stopwatch => "space start • l lap • r reset • q quit",
+    };
+    if hint.is_empty() { return; }
+    // right-align; truncate from the left if narrow
+    let chars: Vec<char> = hint.chars().collect();
+    let txt: String = if (chars.len() as u16) > area.width {
+        chars[chars.len() - area.width as usize..].iter().collect()
+    } else {
+        hint.to_string()
+    };
+    let buf = frame.buffer_mut();
+    let hx = area.x + area.width.saturating_sub(txt.len() as u16);
+    for (i, ch) in txt.chars().enumerate() {
+        let cx = hx + i as u16;
+        if cx >= area.x + area.width || cx >= buf.area.width { break; }
+        buf[(cx, area.y)].set_char(ch);
+        buf[(cx, area.y)].set_style(Style::default().fg(th.text_muted).bg(th.bg));
     }
 }
 
@@ -1565,36 +1595,18 @@ fn draw_controls(frame: &mut Frame, area: Rect, app: &mut App) {
         cx += w + gap;
     }
 
-    // single subtle hint line — no theme/mouse spam (those live in Settings)
-    if area.height >= 2 && !empty {
-        let hint_y = y+1;
-        let hint = match app.mode {
-            AppMode::Clock => "",
-            AppMode::Pomodoro => "space start  •  r reset  •  s skip",
-            AppMode::Timer if app.timer_editing => "type MM:SS  •  enter save  •  esc cancel",
-            AppMode::Timer => "space start  •  r reset  •  e edit time",
-            AppMode::Stopwatch => "space start  •  l lap  •  r reset",
-        };
-        if !hint.is_empty() && (hint.len() as u16) < area.width {
-            let hx = area.x + area.width.saturating_sub(hint.len() as u16)/2;
-            for (i,ch) in hint.chars().enumerate(){
-                let cxx=hx+i as u16;
-                if cxx>=area.x+area.width || cxx>=buf.area.width { break; }
-                buf[(cxx,hint_y)].set_char(ch);
-                buf[(cxx,hint_y)].set_style(Style::default().fg(th.text_muted).bg(th.bg));
-            }
-        }
-    }
+    // no hint line here — shortcuts live top-right now.
     // empty controls (Clock mode): clear area only
-    if empty {
-        return;
-    }
+    let _ = empty;
 }
 
-fn draw_footer_laps(frame: &mut Frame, area: Rect, app: &mut App) {
-    if area.height==0 { return; }
+/// Stopwatch laps table. Only called when laps exist (otherwise the chunk
+/// has zero height and the nav row stays at the absolute bottom).
+fn draw_laps(frame: &mut Frame, area: Rect, app: &mut App) {
+    if area.height < 3 { return; }
+    if app.mode != AppMode::Stopwatch || app.stopwatch.laps.is_empty() { return; }
     let th = app.theme();
-    if app.mode==AppMode::Stopwatch && !app.stopwatch.laps.is_empty() && area.height >= 3 {
+    {
         let title = format!(" LAPS ({} total) — newest first ", app.stopwatch.laps.len());
         let block = Block::default()
             .title(title)
@@ -1633,16 +1645,6 @@ fn draw_footer_laps(frame: &mut Frame, area: Rect, app: &mut App) {
                 y+=1;
             }
         }
-    } else {
-        // minimal footer — no theme/mouse spam (in Settings only)
-        let p = Paragraph::new(Line::from(Span::styled(
-            "s settings  •  q quit",
-            Style::default().fg(th.text_muted).bg(th.bg),
-        )))
-        .alignment(Alignment::Center)
-        .style(Style::default().bg(th.bg));
-        let footer_area = Rect::new(area.x, area.y + area.height.saturating_sub(1), area.width, 1);
-        frame.render_widget(p, footer_area);
     }
 }
 
